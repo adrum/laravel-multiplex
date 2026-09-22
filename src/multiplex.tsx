@@ -149,12 +149,15 @@ export async function multiplex(options: MultiplexOptions): Promise<number> {
     const timestamps = options.timestamps ?? false;
     const title = options.title ? sanitizeTitle(options.title) : undefined;
     const json = options.json ?? false;
+    // Nothing below has to be answered for a run that was never going to draw a
+    // TUI, and `rawModeUsable` is the one that costs a terminal side effect.
+    const wantsTui = !json && !(options.inline ?? false);
     const hasTty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-    const noRawMode = hasTty && !rawModeUsable();
+    const noRawMode = wantsTui && hasTty && !rawModeUsable();
     const interactive = hasTty && !noRawMode;
     const columns = process.stdout.columns ?? 0;
     const rows = process.stdout.rows ?? 0;
-    const tooSmall = interactive && !fitsTui(columns, rows);
+    const tooSmall = wantsTui && interactive && !fitsTui(columns, rows);
     const inline =
         json || (options.inline ?? false) || !interactive || tooSmall;
 
@@ -218,17 +221,16 @@ export async function multiplex(options: MultiplexOptions): Promise<number> {
         });
 
         // Without a TTY inline mode is the expected outcome and needs no
-        // explanation; in a real terminal the missing TUI does.
-        if (!json) {
-            const notice = tooSmall
-                ? `Terminal is ${columns}x${rows}; the TUI needs at least ${MIN_COLUMNS}x${MIN_ROWS}. Running inline.`
-                : noRawMode
-                  ? "Terminal will not enter raw mode, so the TUI has no keyboard input. Running inline."
-                  : undefined;
+        // explanation, and neither does one that was asked for; in a real
+        // terminal the missing TUI does.
+        const notice = tooSmall
+            ? `Terminal is ${columns}x${rows}; the TUI needs at least ${MIN_COLUMNS}x${MIN_ROWS}. Running inline.`
+            : noRawMode
+              ? "Terminal will not enter raw mode, so the TUI has no keyboard input. Running inline."
+              : undefined;
 
-            if (notice) {
-                process.stderr.write(`${color ? systemMsg(notice) : notice}\n`);
-            }
+        if (notice) {
+            process.stderr.write(`${color ? systemMsg(notice) : notice}\n`);
         }
 
         if (useTitle) {

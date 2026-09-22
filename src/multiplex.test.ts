@@ -96,6 +96,29 @@ describe("raw mode fallback", () => {
         assert.doesNotMatch(stderr, /EIO/);
     });
 
+    it("does not probe, or explain itself, when inline mode was asked for", async () => {
+        const { code, stdout, stderr } = await runWithFakeTty(
+            ["-i", "web,echo hello"],
+            { rawMode: "fails" },
+        );
+
+        assert.equal(code, 0);
+        assert.match(stdout, /web │ hello/);
+        assert.doesNotMatch(stderr, /\[setRawMode/);
+        assert.doesNotMatch(stderr, /raw mode/);
+    });
+
+    it("does not probe when the output is JSON", async () => {
+        const { code, stdout, stderr } = await runWithFakeTty(
+            ["--json", "web,echo hello"],
+            { rawMode: "works" },
+        );
+
+        assert.equal(code, 0);
+        assert.match(stdout, /"type":"output"/);
+        assert.doesNotMatch(stderr, /\[setRawMode/);
+    });
+
     it("leaves the terminal the way it found it when it probes", async () => {
         // Too small for the TUI, so the run stays observable: the probe still
         // happens, and then inline mode takes over rather than Ink.
